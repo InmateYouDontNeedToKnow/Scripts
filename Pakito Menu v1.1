@@ -1,4 +1,4 @@
--- PAKITO MENU v1.1 FINAL
+-- PAKITO MENU v2.4 FINAL
 
 if game.CoreGui:FindFirstChild("PakitoMenu") then
     game.CoreGui.PakitoMenu:Destroy()
@@ -49,7 +49,7 @@ Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
 
 local title = Instance.new("TextLabel", main)
 title.Size = UDim2.new(1,0,0,50)
-title.Text = "💜Pakito Menu V1.1💜"
+title.Text = "PAKITO MENU v2.4"
 title.TextColor3 = Color3.new(1,1,1)
 title.BackgroundColor3 = Color3.fromRGB(50,30,90)
 title.Font = Enum.Font.GothamBold
@@ -177,9 +177,12 @@ end)
 RunService.RenderStepped:Connect(function()
     fov.Position = Vector2.new(camera.ViewportSize.X/2,camera.ViewportSize.Y/2)
 
-    if bhop and holdingSpace and lp.Character and lp.Character:FindFirstChild("Humanoid") then
-        local hum = lp.Character.Humanoid
-        if hum:GetState() == Enum.HumanoidStateType.Landed then hum.Jump = true end
+    -- Bunny Hop corrigido
+    if bhop and holdingSpace and lp.Character then
+        local hum = lp.Character:FindFirstChild("Humanoid")
+        if hum and hum.FloorMaterial ~= Enum.Material.Air then
+            hum.Jump = true
+        end
     end
 
     if not aimbot or not holdingRMB then return end
@@ -210,11 +213,19 @@ end)
 -- ESP
 -- =====================
 function createESP(player)
-    if espData[player] or not player.Character then return end
+    -- Se já tiver ESP ativo, desconecta e destrói para evitar duplicado
+    if espData[player] then
+        if espData[player].connection then espData[player].connection:Disconnect() end
+        if espData[player].highlight then espData[player].highlight:Destroy() end
+        if espData[player].billboard then espData[player].billboard:Destroy() end
+    end
+
+    if not player.Character then return end
     local char = player.Character
     local root = char:WaitForChild("HumanoidRootPart")
     local hum = char:WaitForChild("Humanoid")
 
+    -- Highlight
     local h = Instance.new("Highlight", char)
     h.Adornee = char
     h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -223,63 +234,50 @@ function createESP(player)
     h.FillTransparency = 0.45
     h.OutlineTransparency = 0.15
 
-    local bb = Instance.new("BillboardGui", root)
-    bb.Size = UDim2.new(0,200,0,90)
-    bb.StudsOffset = Vector3.new(0,4,0)
-    bb.AlwaysOnTop = true
+    
+    -- Loop do ESP
+    local conn
+    conn = RunService.Heartbeat:Connect(function()
+        if not root.Parent then
+            conn:Disconnect()
+            espData[player] = nil -- limpa referência ao morrer
+            return
+        end
 
-    local frame = Instance.new("Frame", bb)
-    frame.Size = UDim2.new(1,0,1,0)
-    frame.BackgroundTransparency = 0.65
-    frame.BackgroundColor3 = Color3.fromRGB(30,20,50)
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
-
-    local name = Instance.new("TextLabel", frame)
-    name.Size = UDim2.new(1,-10,0,25)
-    name.Position = UDim2.new(0,5,0,5)
-    name.BackgroundTransparency = 1
-    name.Text = player.Name
-    name.TextColor3 = Color3.new(1,1,1)
-    name.Font = Enum.Font.GothamBold
-    name.TextScaled = true
-
-    local barBg = Instance.new("Frame", frame)
-    barBg.Size = UDim2.new(0.9,0,0,10)
-    barBg.Position = UDim2.new(0.05,0,0.45,0)
-    barBg.BackgroundColor3 = Color3.fromRGB(50,50,60)
-    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1,0)
-
-    local bar = Instance.new("Frame", barBg)
-    bar.BackgroundColor3 = Color3.fromRGB(180,100,255)
-    bar.Size = UDim2.new(1,0,1,0)
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(1,0)
-
-    local dist = Instance.new("TextLabel", frame)
-    dist.Size = UDim2.new(1,-10,0,20)
-    dist.Position = UDim2.new(0,5,0.7,0)
-    dist.BackgroundTransparency = 1
-    dist.TextColor3 = Color3.fromRGB(220,220,240)
-    dist.Font = Enum.Font.Gotham
-    dist.TextSize = 14
-
-    local conn = RunService.Heartbeat:Connect(function()
-        if not esp or not root.Parent then conn:Disconnect() return end
-        dist.Text = math.floor((root.Position - camera.CFrame.Position).Magnitude).." studs"
-        bar.Size = UDim2.new(math.clamp(hum.Health/hum.MaxHealth,0,1),0,1,0)
+        if esp then
+            dist.Text = math.floor((root.Position - camera.CFrame.Position).Magnitude).." studs"
+            bar.Size = UDim2.new(math.clamp(hum.Health/hum.MaxHealth,0,1),0,1,0)
+            if not h.Parent then h.Parent = char end
+            if not bb.Parent then bb.Parent = root end
+        else
+            if h.Parent then h:Destroy() end
+            if bb.Parent then bb:Destroy() end
+        end
     end)
 
-    espData[player] = {highlight=h,billboard=bb,connection=conn}
+    espData[player] = {highlight=h, billboard=bb, connection=conn}
 end
+
+-- =====================
+-- Reconectar ESP em respawn
+-- =====================
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function()
+        if esp then
+            createESP(p)
+        end
+    end)
+end)
 
 for _,p in pairs(Players:GetPlayers()) do
     if p ~= lp then
-        p.CharacterAdded:Connect(function() if esp then createESP(p) end end)
-        if p.Character then createESP(p) end
+        p.CharacterAdded:Connect(function()
+            if esp then
+                createESP(p)
+            end
+        end)
+        if esp and p.Character then
+            createESP(p)
+        end
     end
 end
-
-Players.PlayerAdded:Connect(function(p)
-    if p ~= lp then
-        p.CharacterAdded:Connect(function() if esp then createESP(p) end end)
-    end
-end)
