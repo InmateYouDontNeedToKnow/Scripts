@@ -1,0 +1,283 @@
+-- PAKITO MENU v1.1 FINAL
+
+if game.CoreGui:FindFirstChild("PakitoMenu") then
+    game.CoreGui.PakitoMenu:Destroy()
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local lp = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- =====================
+-- VARS
+-- =====================
+local esp = false
+local bhop = false
+local aimbot = false
+local holdingRMB = false
+local holdingSpace = false
+local showFov = true
+local bindKey = Enum.KeyCode.RightShift
+local espData = {}
+
+-- =====================
+-- FOV CIRCLE
+-- =====================
+local fov = Drawing.new("Circle")
+fov.Radius = 150
+fov.Thickness = 2
+fov.Color = Color3.fromRGB(180,100,255)
+fov.Visible = true
+fov.Transparency = 0.5
+fov.NumSides = 64
+
+-- =====================
+-- GUI
+-- =====================
+local gui = Instance.new("ScreenGui", game.CoreGui)
+gui.Name = "PakitoMenu"
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,350,0,470)
+main.Position = UDim2.new(0.5,-175,0.5,-235)
+main.BackgroundColor3 = Color3.fromRGB(20,15,40)
+main.Active = true
+main.Draggable = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,0,0,50)
+title.Text = "💜Pakito Menu V1.1💜"
+title.TextColor3 = Color3.new(1,1,1)
+title.BackgroundColor3 = Color3.fromRGB(50,30,90)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+
+-- =====================
+-- BUTTONS
+-- =====================
+local function makeButton(text,y,callback)
+    local b = Instance.new("TextButton", main)
+    b.Size = UDim2.new(1,-40,0,40)
+    b.Position = UDim2.new(0,20,0,y)
+    b.Text = text.." : OFF"
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 16
+    b.BackgroundColor3 = Color3.fromRGB(70,50,120)
+    b.TextColor3 = Color3.new(1,1,1)
+
+    local c = false
+    b.MouseButton1Click:Connect(function()
+        c = not c
+        b.Text = text.." : "..(c and "ON" or "OFF")
+        b.BackgroundColor3 = c and Color3.fromRGB(140,80,255) or Color3.fromRGB(70,50,120)
+        callback(c)
+    end)
+end
+
+makeButton("ESP",70,function(v)
+    esp = v
+    if esp then
+        for _,p in pairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                createESP(p)
+            end
+        end
+    else
+        for p,data in pairs(espData) do
+            if data.highlight then data.highlight:Destroy() end
+            if data.billboard then data.billboard:Destroy() end
+            if data.connection then data.connection:Disconnect() end
+        end
+        espData = {}
+    end
+end)
+
+makeButton("Bunny Hop",120,function(v) bhop=v end)
+makeButton("AIMBOT",170,function(v) aimbot=v end)
+makeButton("SHOW FOV",220,function(v) showFov=v fov.Visible=v end)
+
+-- =====================
+-- FOV INPUT
+-- =====================
+local fovBox = Instance.new("TextBox", main)
+fovBox.Size = UDim2.new(1,-40,0,40)
+fovBox.Position = UDim2.new(0,20,0,270)
+fovBox.BackgroundColor3 = Color3.fromRGB(90,60,150)
+fovBox.TextColor3 = Color3.new(1,1,1)
+fovBox.Font = Enum.Font.GothamBold
+fovBox.TextSize = 16
+fovBox.PlaceholderText = "Digite o FOV (ex: 150)"
+fovBox.Text = "150"
+fovBox.ClearTextOnFocus = false
+Instance.new("UICorner", fovBox).CornerRadius = UDim.new(0,12)
+
+fovBox.FocusLost:Connect(function()
+    local n = tonumber(fovBox.Text)
+    if n then
+        n = math.clamp(n,20,1000)
+        fov.Radius = n
+        fovBox.Text = tostring(n)
+    else
+        fovBox.Text = tostring(fov.Radius)
+    end
+end)
+
+-- =====================
+-- BIND BUTTON
+-- =====================
+local bindBtn = Instance.new("TextButton", main)
+bindBtn.Size = UDim2.new(1,-40,0,40)
+bindBtn.Position = UDim2.new(0,20,0,330)
+bindBtn.Text = "SET BIND KEY"
+bindBtn.Font = Enum.Font.GothamBold
+bindBtn.TextSize = 16
+bindBtn.BackgroundColor3 = Color3.fromRGB(90,60,150)
+bindBtn.TextColor3 = Color3.new(1,1,1)
+
+bindBtn.MouseButton1Click:Connect(function()
+    bindBtn.Text = "PRESS A KEY..."
+    local con
+    con = UIS.InputBegan:Connect(function(i)
+        if i.KeyCode ~= Enum.KeyCode.Unknown then
+            bindKey = i.KeyCode
+            bindBtn.Text = "BIND: "..bindKey.Name
+            con:Disconnect()
+        end
+    end)
+end)
+
+-- =====================
+-- MENU TOGGLE
+-- =====================
+UIS.InputBegan:Connect(function(i,g)
+    if not g and i.KeyCode == bindKey then
+        main.Visible = not main.Visible
+    end
+end)
+
+-- =====================
+-- INPUTS
+-- =====================
+UIS.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton2 then holdingRMB = true end
+    if i.KeyCode == Enum.KeyCode.Space then holdingSpace = true end
+end)
+
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton2 then holdingRMB = false end
+    if i.KeyCode == Enum.KeyCode.Space then holdingSpace = false end
+end)
+
+-- =====================
+-- LOOP
+-- =====================
+RunService.RenderStepped:Connect(function()
+    fov.Position = Vector2.new(camera.ViewportSize.X/2,camera.ViewportSize.Y/2)
+
+    -- Bunny Hop corrigido
+    if bhop and holdingSpace and lp.Character then
+        local hum = lp.Character:FindFirstChild("Humanoid")
+        if hum and hum.FloorMaterial ~= Enum.Material.Air then
+            hum.Jump = true
+        end
+    end
+
+    if not aimbot or not holdingRMB then return end
+
+    local closest
+    local minDist = fov.Radius
+
+    for _,p in pairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("Head") then
+            local head = p.Character.Head
+            local pos,vis = camera:WorldToViewportPoint(head.Position)
+            if vis then
+                local dist = (Vector2.new(pos.X,pos.Y)-fov.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    closest = head
+                end
+            end
+        end
+    end
+
+    if closest then
+        camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, closest.Position),0.35)
+    end
+end)
+
+-- =====================
+-- ESP
+-- =====================
+function createESP(player)
+    -- Se já tiver ESP ativo, desconecta e destrói para evitar duplicado
+    if espData[player] then
+        if espData[player].connection then espData[player].connection:Disconnect() end
+        if espData[player].highlight then espData[player].highlight:Destroy() end
+        if espData[player].billboard then espData[player].billboard:Destroy() end
+    end
+
+    if not player.Character then return end
+    local char = player.Character
+    local root = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+
+    -- Highlight
+    local h = Instance.new("Highlight", char)
+    h.Adornee = char
+    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    h.FillColor = Color3.fromRGB(180,100,255)
+    h.OutlineColor = Color3.fromRGB(220,160,255)
+    h.FillTransparency = 0.45
+    h.OutlineTransparency = 0.15
+
+    
+    -- Loop do ESP
+    local conn
+    conn = RunService.Heartbeat:Connect(function()
+        if not root.Parent then
+            conn:Disconnect()
+            espData[player] = nil -- limpa referência ao morrer
+            return
+        end
+
+        if esp then
+            dist.Text = math.floor((root.Position - camera.CFrame.Position).Magnitude).." studs"
+            bar.Size = UDim2.new(math.clamp(hum.Health/hum.MaxHealth,0,1),0,1,0)
+            if not h.Parent then h.Parent = char end
+            if not bb.Parent then bb.Parent = root end
+        else
+            if h.Parent then h:Destroy() end
+            if bb.Parent then bb:Destroy() end
+        end
+    end)
+
+    espData[player] = {highlight=h, billboard=bb, connection=conn}
+end
+
+-- =====================
+-- Reconectar ESP em respawn
+-- =====================
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function()
+        if esp then
+            createESP(p)
+        end
+    end)
+end)
+
+for _,p in pairs(Players:GetPlayers()) do
+    if p ~= lp then
+        p.CharacterAdded:Connect(function()
+            if esp then
+                createESP(p)
+            end
+        end)
+        if esp and p.Character then
+            createESP(p)
+        end
+    end
+end
