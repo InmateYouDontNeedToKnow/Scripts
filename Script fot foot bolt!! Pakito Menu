@@ -1,0 +1,190 @@
+-- PAKITO MENU - TP BALL + GOLS A e B (GUI ARRASTÁVEL)
+-- TÍTULO "Pakito Menu" + 3 botões
+-- Cole no executor e execute UMA VEZ
+
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local UIS = game:GetService("UserInputService")
+
+-- Remove GUI antiga se existir
+local oldGui = playerGui:FindFirstChild("PakitoMenu")
+if oldGui then oldGui:Destroy() end
+
+-- Cria ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PakitoMenu"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+-- Frame principal (maior pra caber 3 botões)
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 170)  
+frame.Position = UDim2.new(0.5, -110, 0.08, 0)  -- Centro superior
+frame.BackgroundColor3 = Color3.fromRGB(15,15,15)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = frame
+
+-- TÍTULO "Pakito Menu" (arrastável)
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(157, 0, 255)
+title.Text = "🎮 Pakito Menu"
+title.TextColor3 = Color3.new(1,1,1)
+title.TextScaled = true
+title.Font = Enum.Font.GothamBlack
+title.Parent = frame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = title
+
+-- Função genérica de teleporte
+local function teleportTo(targetName, extraOffset)
+    local char = player.Character
+    if not char then
+        status.Text = "Sem personagem"
+        status.TextColor3 = Color3.fromRGB(255,100,100)
+        return
+    end
+    
+    local root = char.PrimaryPart or char:FindFirstChild("HumanoidRootPart") 
+        or char:FindFirstChildOfClass("BasePart")
+    
+    if not root then
+        status.Text = "Sem RootPart"
+        status.TextColor3 = Color3.fromRGB(255,100,100)
+        return
+    end
+    
+    local target
+    
+    if targetName == "Ball" then
+        local loadFolder = workspace:FindFirstChild("Load")
+        target = loadFolder and loadFolder:FindFirstChild("Ball")
+    elseif targetName == "A" or targetName == "B" then
+        local u20 = workspace:FindFirstChild("U20")
+        if u20 then
+            target = u20:FindFirstChild(targetName)
+        end
+    end
+    
+    if not target then
+        status.Text = targetName .. " não encontrado!"
+        status.TextColor3 = Color3.fromRGB(255,100,100)
+        return
+    end
+    
+    local pivot = target:IsA("Model") and target:GetPivot() or target.CFrame
+    
+    local offset = Vector3.new(0, extraOffset or 3.5, 0)
+    local lookAtPos = pivot.Position
+    local finalPos = pivot.Position + offset + (root.Position - pivot.Position).Unit * -6  -- ~6 studs na frente
+    
+    char:PivotTo(CFrame.lookAt(finalPos, lookAtPos))
+    
+    status.Text = "TP → " .. targetName .. " OK! ⚡"
+    status.TextColor3 = Color3.fromRGB(100, 255, 100)
+end
+
+-- Criação dos botões
+local function createTPButton(text, yPos, color, targetName, offset, keyCode)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0.9, 0, 0, 38)
+    button.Position = UDim2.new(0.05, 0, 0, yPos)
+    button.BackgroundColor3 = color
+    button.Text = text
+    button.TextColor3 = Color3.new(1,1,1)
+    button.TextScaled = true
+    button.Font = Enum.Font.GothamBold
+    button.Parent = frame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 10)
+    btnCorner.Parent = button
+    
+    -- Clique
+    button.MouseButton1Click:Connect(function()
+        teleportTo(targetName, offset)
+        button.BackgroundColor3 = Color3.fromRGB(255, 220, 100)  -- feedback
+        task.delay(0.4, function()
+            button.BackgroundColor3 = color
+        end)
+    end)
+    
+    -- Tecla rápida
+    if keyCode then
+        UIS.InputBegan:Connect(function(input, gpe)
+            if gpe then return end
+            if input.KeyCode == keyCode then
+                teleportTo(targetName, offset)
+            end
+        end)
+    end
+end
+
+-- Botões
+createTPButton("⚽ TP → BALL",  35, Color3.fromRGB(0, 200, 100),   "Ball", 3.5, Enum.KeyCode.Q)
+createTPButton("🔴 TP → Gol A",  80, Color3.fromRGB(220, 40, 40),  "A",    5,   Enum.KeyCode.E)
+createTPButton("🔵 TP → Gol B", 125, Color3.fromRGB(40, 40, 220),  "B",    5,   Enum.KeyCode.R)
+
+-- Status label (embaixo)
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, 0, 0, 22)
+status.Position = UDim2.new(0, 0, 1, -24)
+status.BackgroundTransparency = 1
+status.Text = "Pronto"
+status.TextColor3 = Color3.fromRGB(200, 200, 200)
+status.TextScaled = true
+status.Font = Enum.Font.Gotham
+status.Parent = frame
+
+-- === DRAG (arrastar pelo título ou frame) ===
+local dragging, dragStart, startPos = false, nil, nil
+
+local function updateDrag(input)
+    if not dragging then return end
+    local delta = input.Position - dragStart
+    frame.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
+end
+
+-- Início do drag
+local function startDrag(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and 
+       input.UserInputType ~= Enum.UserInputType.Touch then return end
+    dragging = true
+    dragStart = input.Position
+    startPos = frame.Position
+end
+
+frame.InputBegan:Connect(startDrag)
+title.InputBegan:Connect(startDrag)
+
+-- Movimento
+UIS.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        updateDrag(input)
+    end
+end)
+
+-- Fim do drag
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+print("🎮 PAKITO MENU atualizado! 3 botões + teclas Q / E / R")
+print("Arraste pelo título roxo • Clique ou use teclas para TP")
